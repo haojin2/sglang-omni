@@ -32,9 +32,9 @@ from pathlib import Path
 import pytest
 
 from benchmarks.dataset.prepare import DATASETS, download_dataset
-from benchmarks.eval.benchmark_tts_speed import (
-    TtsSpeedBenchmarkConfig,
-    run_tts_speed_benchmark,
+from benchmarks.eval.benchmark_tts_seedtts import (
+    TtsSeedttsBenchmarkConfig,
+    run_tts_seedtts_benchmark,
 )
 from tests.utils import (
     apply_slack,
@@ -164,7 +164,7 @@ WER_SCRIPT = str(
     Path(__file__).resolve().parents[2]
     / "benchmarks"
     / "eval"
-    / "voice_clone_tts_wer.py"
+    / "benchmark_tts_seedtts.py"
 )
 
 
@@ -177,17 +177,16 @@ def _run_benchmark(
     max_samples: int | None = None,
     stream: bool = False,
 ) -> dict:
-    benchmark_config = TtsSpeedBenchmarkConfig(
+    benchmark_config = TtsSeedttsBenchmarkConfig(
         model=S2PRO_MODEL_PATH,
         port=port,
-        testset=testset,
+        meta=testset,
         output_dir=output_dir,
         concurrency=concurrency,
         max_samples=max_samples,
-        save_audio=True,
         stream=stream,
     )
-    speed_results = asyncio.run(run_tts_speed_benchmark(benchmark_config))
+    speed_results = asyncio.run(run_tts_seedtts_benchmark(benchmark_config))
     assert (
         "summary" in speed_results
     ), f"Missing 'summary' key in results. Keys: {list(speed_results.keys())}"
