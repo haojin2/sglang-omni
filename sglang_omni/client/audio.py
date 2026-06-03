@@ -123,6 +123,62 @@ def encode_wav(audio: np.ndarray, sample_rate: int) -> bytes:
     return buf.getvalue()
 
 
+def _resample_linear(audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
+    if orig_sr == target_sr:
+        return audio.astype(np.float32, copy=False)
+    if audio.size == 0:
+        return audio.astype(np.float32, copy=False)
+    duration = audio.shape[0] / float(orig_sr)
+    new_len = max(int(round(duration * target_sr)), 1)
+    old_idx = np.arange(audio.shape[0], dtype=np.float64)
+    new_idx = np.linspace(0.0, audio.shape[0] - 1, num=new_len, dtype=np.float64)
+    return np.interp(new_idx, old_idx, audio).astype(np.float32)
+
+
+def encode_opus(audio: np.ndarray, sample_rate: int) -> bytes:
+    """Encode float32 audio numpy array to Ogg/Opus format using PyAV."""
+    import io
+
+    import av
+
+    valid_rates = {8000, 12000, 16000, 24000, 48000}
+    if sample_rate not in valid_rates:
+        nearest_rate = min(valid_rates, key=lambda r: abs(r - sample_rate))
+        audio = _resample_linear(audio, sample_rate, nearest_rate)
+        sample_rate = nearest_rate
+
+    buf = io.BytesIO()
+    container = av.open(buf, mode="w", format="ogg")
+
+    try:
+        try:
+            stream = container.add_stream("libopus", rate=sample_rate)
+        except av.CodecError:
+            stream = container.add_stream("opus", rate=sample_rate)
+    except av.CodecError as e:
+        container.close()
+        raise RuntimeError(
+            "Neither 'libopus' nor 'opus' codec is supported by PyAV."
+        ) from e
+
+    stream.layout = "mono"
+
+    # FFmpeg libopus expects float-planar (fltp) or s16-planar (s16p) formats
+    frame = av.AudioFrame.from_ndarray(
+        audio.reshape(1, -1), format="fltp", layout="mono"
+    )
+    frame.sample_rate = sample_rate
+
+    for packet in stream.encode(frame):
+        container.mux(packet)
+
+    for packet in stream.encode(None):
+        container.mux(packet)
+
+    container.close()
+    return buf.getvalue()
+
+
 def encode_pcm(audio: np.ndarray, sample_rate: int) -> bytes:
     """Encode audio as raw 16-bit PCM bytes."""
     audio = np.clip(audio, -1.0, 1.0)
@@ -172,6 +228,14 @@ def encode_audio(
 
     if fmt == "pcm":
         return encode_pcm(arr, sample_rate), mime
+
+    if fmt == "opus":
+        try:
+            return encode_opus(arr, sample_rate), mime
+        except Exception as e:
+            logger.warning(
+                "PyAV OPUS encoding failed (%s); falling back to pydub/WAV", str(e)
+            )
 
     if fmt in ("mp3", "flac", "opus", "aac"):
         # Try soundfile for FLAC

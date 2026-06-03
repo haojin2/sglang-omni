@@ -258,7 +258,7 @@ The table below lists all parameters accepted by the `/v1/audio/speech` endpoint
 |---|---|---|---|
 | `input` | string | (required) | Text to synthesize |
 | `voice` | string | `"default"` | Voice identifier |
-| `response_format` | string | `"wav"` | Output audio format |
+| `response_format` | string | `"wav"` | Output audio format (`wav`, `mp3`, `flac`, `opus`, `aac`, `pcm`) |
 | `speed` | float | `1.0` | Playback speed multiplier |
 | `stream` | bool | `false` | Enable streaming via SSE |
 | `references` | list | `null` | Reference audio for voice cloning; each item has `audio_path` (local path / remote url) and `text` |
